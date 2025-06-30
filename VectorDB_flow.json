@@ -1,0 +1,978 @@
+{
+  "name": "VectorDB",
+  "nodes": [
+    {
+      "parameters": {
+        "jsonMode": "expressionData",
+        "jsonData": "={{ $input.item.json.content }}",
+        "options": {
+          "metadata": {
+            "metadataValues": [
+              {
+                "name": "id",
+                "value": "={{ $input.item.json.id || $('Code').item.json.metadata.json.product.id }}"
+              }
+            ]
+          }
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.documentDefaultDataLoader",
+      "typeVersion": 1,
+      "position": [
+        2440,
+        180
+      ],
+      "id": "5656740c-1a91-45bd-9144-ccf44c6cc967",
+      "name": "Default Data Loader"
+    },
+    {
+      "parameters": {
+        "chunkOverlap": 64,
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.textSplitterRecursiveCharacterTextSplitter",
+      "typeVersion": 1,
+      "position": [
+        2440,
+        380
+      ],
+      "id": "26bc2c94-4f1d-421d-8382-ed039fd7ef31",
+      "name": "Recursive Character Text Splitter"
+    },
+    {
+      "parameters": {
+        "modelName": "models/text-embedding-004"
+      },
+      "type": "@n8n/n8n-nodes-langchain.embeddingsGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        2140,
+        200
+      ],
+      "id": "b9c49fa3-94fd-491e-96f5-a8cae79c18fa",
+      "name": "Embeddings Google Gemini",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "dL6FGoHQlayUi0zr",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "insert",
+        "tableName": {
+          "__rl": true,
+          "value": "documents",
+          "mode": "list",
+          "cachedResultName": "documents"
+        },
+        "options": {
+          "queryName": "match_documents"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.vectorStoreSupabase",
+      "typeVersion": 1,
+      "position": [
+        2220,
+        -20
+      ],
+      "id": "0409a793-835c-48d4-a506-f26eccf876e8",
+      "name": "Supabase Vector Store",
+      "credentials": {
+        "supabaseApi": {
+          "id": "1tpYf8l88U7T5pC1",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const products = $input.all()\n\nreturn products.map(item => {\n  // Dynamically build content from all fields\n  const content = Object.entries(item)\n    .map(([key, value]) => {\n      return `${key}: ${typeof value === 'object' && value !== null \n        ? JSON.stringify(value, null, 2) \n        : value}`;\n    })\n    .join('\\n');\n\n  // Dynamically build metadata with type handling\n  const metadata = Object.entries(item).reduce((acc, [key, value]) => {\n    let processedValue = value;\n\n    if (!isNaN(value) && value !== '') {\n      processedValue = Number(value);\n    } else if (typeof value === 'object' && value !== null) {\n      processedValue = value;\n    } else {\n      processedValue = value;\n    }\n\n    return { ...acc, [key]: processedValue };\n  }, {});\n\n  return {\n    json: { content, metadata }\n  };\n});\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1380,
+        -220
+      ],
+      "id": "afda8d60-e8f3-4096-90e2-dca3ed756df7",
+      "name": "Prepare data"
+    },
+    {
+      "parameters": {
+        "operation": "delete",
+        "tableId": "documents",
+        "filterType": "string",
+        "filterString": "=metadata->>id=eq.{{ $json.body.product.id }}"
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        620,
+        -120
+      ],
+      "id": "39e6679e-7aff-4edc-842c-1414ee2548f9",
+      "name": "Delete old data",
+      "alwaysOutputData": false,
+      "credentials": {
+        "supabaseApi": {
+          "id": "1tpYf8l88U7T5pC1",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "f499d6b8-385f-4a98-a1a4-0f2e30ac59eb",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -180,
+        -120
+      ],
+      "id": "3d1a6a00-dc74-4407-8676-159be231e9f2",
+      "name": "Webhook",
+      "webhookId": "f499d6b8-385f-4a98-a1a4-0f2e30ac59eb"
+    },
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "triggerOn": "specificFolder",
+        "folderToWatch": {
+          "__rl": true,
+          "value": "1Ys4NnC6p-wlqIvRyiT5u466X-rKVo8Yr",
+          "mode": "list",
+          "cachedResultName": "n8n-documents",
+          "cachedResultUrl": "https://drive.google.com/drive/folders/1Ys4NnC6p-wlqIvRyiT5u466X-rKVo8Yr"
+        },
+        "event": "fileUpdated",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleDriveTrigger",
+      "typeVersion": 1,
+      "position": [
+        -120,
+        460
+      ],
+      "id": "f609e458-5c36-465b-92ce-a84d44065432",
+      "name": "Listerning file update",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "M3IPC2KFd9g8Gs5r",
+          "name": "Google Drive account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "triggerOn": "specificFolder",
+        "folderToWatch": {
+          "__rl": true,
+          "value": "1Ys4NnC6p-wlqIvRyiT5u466X-rKVo8Yr",
+          "mode": "list",
+          "cachedResultName": "n8n-documents",
+          "cachedResultUrl": "https://drive.google.com/drive/folders/1Ys4NnC6p-wlqIvRyiT5u466X-rKVo8Yr"
+        },
+        "event": "fileCreated",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleDriveTrigger",
+      "typeVersion": 1,
+      "position": [
+        -60,
+        680
+      ],
+      "id": "cdc42e4d-3a18-4fad-83e8-f926a4d4259a",
+      "name": "Listerning file create",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "M3IPC2KFd9g8Gs5r",
+          "name": "Google Drive account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "download",
+        "fileId": {
+          "__rl": true,
+          "value": "={{ $json.id }}",
+          "mode": "id"
+        },
+        "options": {
+          "googleFileConversion": {
+            "conversion": {
+              "docsToFormat": "text/plain"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        220,
+        680
+      ],
+      "id": "ee9cd577-17de-465c-93bc-55e9e64ab587",
+      "name": "Download file",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "M3IPC2KFd9g8Gs5r",
+          "name": "Google Drive account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "text",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        480,
+        680
+      ],
+      "id": "e89bd4dc-abb2-49e8-9fd3-03bfed520604",
+      "name": "Extract File"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "f460fe32-acb5-4e1d-9f15-e0cbd7d83d50",
+              "name": "content",
+              "value": "={{ $json.data }}",
+              "type": "string"
+            },
+            {
+              "id": "5ec0df20-6845-4f71-89e8-33d055bfb749",
+              "name": "id",
+              "value": "={{  $('Download file').item.json.id }}",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        720,
+        680
+      ],
+      "id": "e477d56f-1c71-4db8-9d07-dc8364046bb2",
+      "name": "Setup data"
+    },
+    {
+      "parameters": {
+        "operation": "download",
+        "fileId": {
+          "__rl": true,
+          "value": "={{ $json.id }}",
+          "mode": "id"
+        },
+        "options": {
+          "googleFileConversion": {
+            "conversion": {
+              "docsToFormat": "text/plain"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        160,
+        460
+      ],
+      "id": "0c81f6b1-6f47-419a-9131-f7114385c2e3",
+      "name": "Download file1",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "M3IPC2KFd9g8Gs5r",
+          "name": "Google Drive account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "text",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        420,
+        460
+      ],
+      "id": "ea50eafd-e06d-4412-8f08-ec93a7e8d941",
+      "name": "Extract File1"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "f460fe32-acb5-4e1d-9f15-e0cbd7d83d50",
+              "name": "content",
+              "value": "={{ $('Extract File1').item.json.data }}",
+              "type": "string"
+            },
+            {
+              "id": "5ec0df20-6845-4f71-89e8-33d055bfb749",
+              "name": "id",
+              "value": "={{ $('Download file1').item.json.id }}",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        880,
+        460
+      ],
+      "id": "5a57b54c-75b7-4290-a6a9-2dfda333fccc",
+      "name": "Setup data1"
+    },
+    {
+      "parameters": {
+        "operation": "delete",
+        "tableId": "documents",
+        "filterType": "string",
+        "filterString": "=metadata->>id=eq.{{ $('Download file1').item.json.id }}"
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        640,
+        460
+      ],
+      "id": "a88b66b4-3c07-4880-862d-6f5bfea95a83",
+      "name": "Delete old data1",
+      "alwaysOutputData": true,
+      "credentials": {
+        "supabaseApi": {
+          "id": "1tpYf8l88U7T5pC1",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.body.action }}",
+                    "rightValue": "create",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "2cbc1210-73d1-44b1-b1d0-61a4fe2d4855",
+                    "leftValue": "={{ $json.body.action }}",
+                    "rightValue": "update",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "6c253524-92db-44d8-ad29-62172673f967",
+                    "leftValue": "={{ $json.body.action }}",
+                    "rightValue": "delete",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        40,
+        -120
+      ],
+      "id": "9650ab4f-aa34-4556-b8db-98aec44fcd2b",
+      "name": "Switch"
+    },
+    {
+      "parameters": {
+        "jsCode": "\n\nreturn $(\"Fields update data\").all();"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        840,
+        -120
+      ],
+      "id": "bc3c2ad0-616b-4188-b8b9-ef58fd06ba3d",
+      "name": "Get fields data"
+    },
+    {
+      "parameters": {
+        "operation": "delete",
+        "tableId": "documents",
+        "filterType": "string",
+        "filterString": "=metadata->>id=eq.{{ $json.body.product.id }}"
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        540,
+        40
+      ],
+      "id": "1891500f-3669-42e9-92d7-d07ac6922557",
+      "name": "Delete data",
+      "alwaysOutputData": false,
+      "credentials": {
+        "supabaseApi": {
+          "id": "1tpYf8l88U7T5pC1",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "eb6604be-ca10-4912-8349-fedb96efda05",
+              "name": "body.product.id",
+              "value": "={{ $json.body.product_id }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        300,
+        40
+      ],
+      "id": "a6c1d372-d91a-4348-a871-4bcc0ec8541b",
+      "name": "Fields delete data"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "eb6604be-ca10-4912-8349-fedb96efda05",
+              "name": "body.product.id",
+              "value": "={{ $json.body.product.id }}",
+              "type": "string"
+            },
+            {
+              "id": "82bd5e0a-a672-4f36-8c1e-124b61a14462",
+              "name": "body.product.name",
+              "value": "={{ $json.body.product.name }}",
+              "type": "string"
+            },
+            {
+              "id": "53765ab3-f0eb-4d9f-be00-4e8273cd8c56",
+              "name": "body.product.price",
+              "value": "={{ $json.body.product.price }}",
+              "type": "number"
+            },
+            {
+              "id": "a2797429-68d9-4a2c-bf59-5b4497939a29",
+              "name": "body.product.description",
+              "value": "={{ $json.body.product.description }}",
+              "type": "string"
+            },
+            {
+              "id": "e2690f2b-6b07-477c-b6e1-1bc770ee1af0",
+              "name": "body.product.quantity",
+              "value": "={{ $json.body.product.quantity }}",
+              "type": "number"
+            },
+            {
+              "id": "5c6d91cb-1e22-4179-9ff0-71000c8fb78b",
+              "name": "body.product.cpuType",
+              "value": "={{ $json.body.product.cpuType }}",
+              "type": "string"
+            },
+            {
+              "id": "eb6112fb-18a0-44ac-8e0e-3475244f8d39",
+              "name": "body.product.ramType",
+              "value": "={{ $json.body.product.ramType }}",
+              "type": "string"
+            },
+            {
+              "id": "1b1f3d47-f369-46f2-86bc-9fcdf5cd08e1",
+              "name": "body.product.romType",
+              "value": "={{ $json.body.product.romType }}",
+              "type": "string"
+            },
+            {
+              "id": "c991f572-a273-4f4f-aeef-286303b7e6b6",
+              "name": "body.product.screenSize",
+              "value": "={{ $json.body.product.screenSize }}",
+              "type": "string"
+            },
+            {
+              "id": "d6a45731-d9e0-402b-9d0f-473b2b33fd69",
+              "name": "body.product.bateryCapacity",
+              "value": "={{ $json.body.product.bateryCapacity }}",
+              "type": "string"
+            },
+            {
+              "id": "470f0eed-8795-449c-9306-b906a13002fa",
+              "name": "body.product.detailsType",
+              "value": "={{ $json.body.product.detailsType }}",
+              "type": "string"
+            },
+            {
+              "id": "f6aabba0-2239-48e5-9489-93ac8fdd7e7d",
+              "name": "body.product.connectType",
+              "value": "={{ $json.body.product.connectType }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        360,
+        -120
+      ],
+      "id": "ad0ff2c0-8270-41f8-8673-563111f96e35",
+      "name": "Fields update data"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "eb6604be-ca10-4912-8349-fedb96efda05",
+              "name": "body.product.id",
+              "value": "={{ $json.body.product.id }}",
+              "type": "string"
+            },
+            {
+              "id": "82bd5e0a-a672-4f36-8c1e-124b61a14462",
+              "name": "body.product.name",
+              "value": "={{ $json.body.product.name }}",
+              "type": "string"
+            },
+            {
+              "id": "53765ab3-f0eb-4d9f-be00-4e8273cd8c56",
+              "name": "body.product.price",
+              "value": "={{ $json.body.product.price }}",
+              "type": "number"
+            },
+            {
+              "id": "a2797429-68d9-4a2c-bf59-5b4497939a29",
+              "name": "body.product.description",
+              "value": "={{ $json.body.product.description }}",
+              "type": "string"
+            },
+            {
+              "id": "e2690f2b-6b07-477c-b6e1-1bc770ee1af0",
+              "name": "body.product.quantity",
+              "value": "={{ $json.body.product.quantity }}",
+              "type": "number"
+            },
+            {
+              "id": "5c6d91cb-1e22-4179-9ff0-71000c8fb78b",
+              "name": "body.product.cpuType",
+              "value": "={{ $json.body.product.cpuType }}",
+              "type": "string"
+            },
+            {
+              "id": "eb6112fb-18a0-44ac-8e0e-3475244f8d39",
+              "name": "body.product.ramType",
+              "value": "={{ $json.body.product.ramType }}",
+              "type": "string"
+            },
+            {
+              "id": "1b1f3d47-f369-46f2-86bc-9fcdf5cd08e1",
+              "name": "body.product.romType",
+              "value": "={{ $json.body.product.romType }}",
+              "type": "string"
+            },
+            {
+              "id": "c991f572-a273-4f4f-aeef-286303b7e6b6",
+              "name": "body.product.screenSize",
+              "value": "={{ $json.body.product.screenSize }}",
+              "type": "string"
+            },
+            {
+              "id": "d6a45731-d9e0-402b-9d0f-473b2b33fd69",
+              "name": "body.product.bateryCapacity",
+              "value": "={{ $json.body.product.bateryCapacity }}",
+              "type": "string"
+            },
+            {
+              "id": "470f0eed-8795-449c-9306-b906a13002fa",
+              "name": "body.product.detailsType",
+              "value": "={{ $json.body.product.detailsType }}",
+              "type": "string"
+            },
+            {
+              "id": "f6aabba0-2239-48e5-9489-93ac8fdd7e7d",
+              "name": "body.product.connectType",
+              "value": "={{ $json.body.product.connectType }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        600,
+        -360
+      ],
+      "id": "e1c2f13e-66c2-417c-9874-1e73a159e06f",
+      "name": "Fields create data"
+    },
+    {
+      "parameters": {
+        "jsCode": "const products = $input.all()\n\nproducts.forEach(item => {\n  products.forEach(item => {\n  item.json.content = item.json.content\n    .replace(/^json:\\s*/, '')    \n    .replace(/pairedItem:\\s*{[^}]*}/, '')\n    .replace(/\\n/g, '') \n    .trim();  ;\n});\n});\n\nreturn $input.all();"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1660,
+        -100
+      ],
+      "id": "5a7a675f-95c7-4a68-b377-cdac53ccb6ce",
+      "name": "Code"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Default Data Loader": {
+      "ai_document": [
+        [
+          {
+            "node": "Supabase Vector Store",
+            "type": "ai_document",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Recursive Character Text Splitter": {
+      "ai_textSplitter": [
+        [
+          {
+            "node": "Default Data Loader",
+            "type": "ai_textSplitter",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Embeddings Google Gemini": {
+      "ai_embedding": [
+        [
+          {
+            "node": "Supabase Vector Store",
+            "type": "ai_embedding",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare data": {
+      "main": [
+        [
+          {
+            "node": "Code",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Delete old data": {
+      "main": [
+        [
+          {
+            "node": "Get fields data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Switch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Listerning file update": {
+      "main": [
+        [
+          {
+            "node": "Download file1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Listerning file create": {
+      "main": [
+        [
+          {
+            "node": "Download file",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download file": {
+      "main": [
+        [
+          {
+            "node": "Extract File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract File": {
+      "main": [
+        [
+          {
+            "node": "Setup data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Setup data": {
+      "main": [
+        [
+          {
+            "node": "Supabase Vector Store",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download file1": {
+      "main": [
+        [
+          {
+            "node": "Extract File1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract File1": {
+      "main": [
+        [
+          {
+            "node": "Delete old data1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Setup data1": {
+      "main": [
+        [
+          {
+            "node": "Supabase Vector Store",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Delete old data1": {
+      "main": [
+        [
+          {
+            "node": "Setup data1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch": {
+      "main": [
+        [
+          {
+            "node": "Fields create data",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Fields update data",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Fields delete data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get fields data": {
+      "main": [
+        [
+          {
+            "node": "Prepare data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fields delete data": {
+      "main": [
+        [
+          {
+            "node": "Delete data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fields update data": {
+      "main": [
+        [
+          {
+            "node": "Delete old data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fields create data": {
+      "main": [
+        [
+          {
+            "node": "Prepare data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code": {
+      "main": [
+        [
+          {
+            "node": "Supabase Vector Store",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "5c4d0ebc-2ee5-423a-9aee-81845ef62cdd",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "56d60192a8df753ac03094d3a5ad2b53e45ffee08cf596ef0361bb4163799458"
+  },
+  "id": "oKjF9mXX9skSU63H",
+  "tags": []
+}

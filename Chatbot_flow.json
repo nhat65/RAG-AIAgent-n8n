@@ -1,0 +1,389 @@
+{
+  "name": "Chatbot v2",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "chatbot2",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        580,
+        60
+      ],
+      "id": "eabcb5f2-b915-4072-8306-1db165d2a381",
+      "name": "Webhook",
+      "webhookId": "bdfd5342-c69d-4cfb-a527-d6033aab4900"
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-2.0-flash",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        1200,
+        240
+      ],
+      "id": "5eb95b31-6746-443e-b248-afc08b4da1ce",
+      "name": "Google Gemini Chat Model",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "dL6FGoHQlayUi0zr",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $('Edit Fields Request').first().json.body.messages[0].conversation_id }}",
+        "contextWindowLength": 10
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryPostgresChat",
+      "typeVersion": 1.3,
+      "position": [
+        1400,
+        240
+      ],
+      "id": "d4dd98fb-ec03-45cd-93a6-c0c588c6058e",
+      "name": "Postgres Chat Memory",
+      "credentials": {
+        "postgres": {
+          "id": "iD55SvFSNLteSwoz",
+          "name": "Postgres supabase"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $('Webhook').first().json.body.messages[0].content }}",
+        "options": {
+          "systemMessage": "=You are a professional AI assistant tasked with helping customers inquire about electronic products such as phones, laptops, headphones, etc. Your responsibilities also include assisting customers in adding products to their cart and placing orders when requested.\n\nFollow these instructions strictly:\n\n1. **Product Consultation**:\n   - Retrieve product information using the `products_docs` tool from Supabase vector store.\n   - Summarize and present relevant product details in Vietnamese in a clear and helpful manner.\n   - If the requested product cannot be found, respond with:\n\n     { \"message\": \"Xin lỗi, chúng tôi không có thông tin về sản phẩm này.\" }\n\n\n2. **Add to Cart**:\n   - If the customer asks to add a product to the cart, confirm the product name and ask for the **quantity** they want.\n   - Once you have both product and quantity, use the **HTTP Request add to cart tool** and return the response as JSON.\n\n3. **Checkout/Order**:\n   - If the customer wants to place an order, ask for:\n     - Phone number\n     - Address\n     - Payment method (bank transfer or cash)\n   - If the payment method is **bank transfer**, respond:\n     ```json\n     { \"message\": \"Vui lòng truy cập trang thanh toán để hoàn tất đơn hàng của bạn bằng phương thức chuyển khoản.\" }\n     ```\n   - If the payment method is **cash**, use the **HTTP Request order tool** and return the API result in JSON format.\n\n4. **Error Handling**:\n   - If the user query is unrelated to product information (e.g. warranty, shipping), respond:\n     \n     { \"message\": \"Xin lỗi, tôi chỉ có thể hỗ trợ thông tin về sản phẩm. Vui lòng liên hệ bộ phận chăm sóc khách hàng để biết thêm chi tiết.\" }\n    \n\n5. **Output Constraints**:\n   - Always respond in **Vietnamese**.\n   - Always return responses in **pure JSON format**.\n   - Do not include any extra explanations or commentary outside the required output.\n\nUser query:\n{{ $json[\"query\"] }}\n\nPerform your task according to the instructions above.\n"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.7,
+      "position": [
+        1360,
+        40
+      ],
+      "id": "4af1c93b-ad53-4e27-b87d-52555a6e32cf",
+      "name": "RAG AI Agent"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "732e91b7-89ad-4ee7-bd2a-687a128fb57e",
+              "leftValue": "={{ $json.body.messages[0].sender_id }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        800,
+        60
+      ],
+      "id": "9e5ba999-1c27-412d-aceb-01f69f7ac161",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "mode": "retrieve-as-tool",
+        "toolName": "products_docs",
+        "toolDescription": "Get data to answer customer's request",
+        "tableName": {
+          "__rl": true,
+          "value": "documents",
+          "mode": "list",
+          "cachedResultName": "documents"
+        },
+        "topK": 10,
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.vectorStoreSupabase",
+      "typeVersion": 1,
+      "position": [
+        1440,
+        420
+      ],
+      "id": "3362f490-31e5-4c62-b46e-f7d1504618a6",
+      "name": "Supabase Vector Store1",
+      "credentials": {
+        "supabaseApi": {
+          "id": "1tpYf8l88U7T5pC1",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "modelName": "models/text-embedding-004"
+      },
+      "type": "@n8n/n8n-nodes-langchain.embeddingsGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        1380,
+        620
+      ],
+      "id": "29cf319c-081b-438e-8b72-c64138cdcbb0",
+      "name": "Embeddings Google Gemini1",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "dL6FGoHQlayUi0zr",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "fd906035-5e5a-494e-815c-d38561a03c74",
+              "name": "body.messages[0].content",
+              "value": "={{ $json.body.messages[0].content }}",
+              "type": "string"
+            },
+            {
+              "id": "e07c5b52-00ef-4867-a5e9-27bbb3852ae7",
+              "name": "body.messages[0].conversation_id",
+              "value": "={{ $json.body.messages[0].conversation_id }}",
+              "type": "number"
+            },
+            {
+              "id": "01c87f44-b640-4bd2-8f29-1b2467d4ecea",
+              "name": "body.messages[0].account_id",
+              "value": "={{ $json.body.messages[0].account_id }}",
+              "type": "number"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1060,
+        40
+      ],
+      "id": "1c54255b-ae2c-4c3c-a9af-fee06efa047e",
+      "name": "Edit Fields Request"
+    },
+    {
+      "parameters": {
+        "respondWith": "allIncomingItems",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1760,
+        40
+      ],
+      "id": "87e0d473-2f91-49d7-98d7-9d41819d764f",
+      "name": "Respond to Webhook"
+    },
+    {
+      "parameters": {
+        "toolDescription": "Add the product requested by the customer to the shopping cart",
+        "method": "POST",
+        "url": "http",
+        "sendBody": true,
+        "parametersBody": {
+          "values": [
+            {
+              "name": "productId"
+            },
+            {
+              "name": "quantity"
+            }
+          ]
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolHttpRequest",
+      "typeVersion": 1.1,
+      "position": [
+        1740,
+        300
+      ],
+      "id": "1cbd5b7d-c284-43ca-9662-51be18ae0384",
+      "name": "HTTP Request add to cart"
+    },
+    {
+      "parameters": {
+        "toolDescription": "Order",
+        "method": "POST",
+        "url": "http",
+        "sendBody": true,
+        "parametersBody": {
+          "values": [
+            {
+              "name": "phone"
+            },
+            {
+              "name": "address"
+            },
+            {
+              "name": "name"
+            }
+          ]
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolHttpRequest",
+      "typeVersion": 1.1,
+      "position": [
+        1900,
+        300
+      ],
+      "id": "64d65d35-f88e-4c42-be89-5590e9240b5e",
+      "name": "HTTP Request order"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "RAG AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Postgres Chat Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "RAG AI Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "RAG AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Supabase Vector Store1": {
+      "ai_tool": [
+        [
+          {
+            "node": "RAG AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Embeddings Google Gemini1": {
+      "ai_embedding": [
+        [
+          {
+            "node": "Supabase Vector Store1",
+            "type": "ai_embedding",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields Request": {
+      "main": [
+        [
+          {
+            "node": "RAG AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request add to cart": {
+      "ai_tool": [
+        [
+          {
+            "node": "RAG AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request order": {
+      "ai_tool": [
+        [
+          {
+            "node": "RAG AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "5ea21a9d-1932-4202-bd78-fe77801de738",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "56d60192a8df753ac03094d3a5ad2b53e45ffee08cf596ef0361bb4163799458"
+  },
+  "id": "HjdHe9iTLUwm9UyL",
+  "tags": []
+}
